@@ -52,6 +52,55 @@ jobs:
           echo "ADDITIONAL_BUILD_NUMBER=$result" >> $GITHUB_ENV
           echo "USER_REPO=$GITHUB_REPOSITORY" >> $GITHUB_ENV
           echo "CHECK_UPDATES=${{ matrix.updates }}" >> $GITHUB_ENV
+      - name: Prepare signing keystore.
+        env:
+          SIGNING_ALIAS_SECRET: ${{ secrets.ALIAS_NAME }}
+          SIGNING_KEY_PASSWORD_SECRET: ${{ secrets.ALIAS_PASS }}
+          SIGNING_STORE_PASSWORD_SECRET: ${{ secrets.KEYSTORE_PASS }}
+        run: |
+          set -euo pipefail
+
+          keystore="TMessagesProj/config/release.keystore"
+          alias_name="${SIGNING_ALIAS_SECRET:-androidkey}"
+          key_password="${SIGNING_KEY_PASSWORD_SECRET:-android}"
+          store_password="${SIGNING_STORE_PASSWORD_SECRET:-android}"
+
+          validate_keystore() {
+            local temp_keystore
+            temp_keystore="$(mktemp --suffix=.p12)"
+            if keytool -importkeystore \
+              -srckeystore "$keystore" \
+              -srcstorepass "$store_password" \
+              -srcalias "$alias_name" \
+              -srckeypass "$key_password" \
+              -destkeystore "$temp_keystore" \
+              -deststoretype PKCS12 \
+              -deststorepass temp-pass-123 \
+              -destkeypass temp-pass-123 \
+              -noprompt >/dev/null 2>&1; then
+              rm -f "$temp_keystore"
+              return 0
+            fi
+            rm -f "$temp_keystore"
+            return 1
+          }
+
+          if [[ ! -f "$keystore" ]] || ! validate_keystore; then
+            rm -f "$keystore"
+            keytool -genkeypair \
+              -keystore "$keystore" \
+              -storepass "$store_password" \
+              -alias "$alias_name" \
+              -keypass "$key_password" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 3650 \
+              -dname "CN=Fork Client CI, OU=GitHub Actions, O=Fork Client, L=Unknown, ST=Unknown, C=US"
+          fi
+
+          echo "RELEASE_KEY_PASSWORD=$key_password" >> $GITHUB_ENV
+          echo "RELEASE_KEY_ALIAS=$alias_name" >> $GITHUB_ENV
+          echo "RELEASE_STORE_PASSWORD=$store_password" >> $GITHUB_ENV
       - name: Build.
         run: |
           ###
@@ -61,9 +110,9 @@ jobs:
           echo "org.gradle.workers.max=1" >> $vars
           echo "APP_ID=${{ secrets.APP_ID }}" >> $vars
           echo "APP_HASH=${{ secrets.APP_HASH }}" >> $vars
-          echo "RELEASE_KEY_PASSWORD=${{ secrets.ALIAS_PASS }}" >> $vars
-          echo "RELEASE_KEY_ALIAS=${{ secrets.ALIAS_NAME }}" >> $vars
-          echo "RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASS }}" >> $vars
+          echo "RELEASE_KEY_PASSWORD=$RELEASE_KEY_PASSWORD" >> $vars
+          echo "RELEASE_KEY_ALIAS=$RELEASE_KEY_ALIAS" >> $vars
+          echo "RELEASE_STORE_PASSWORD=$RELEASE_STORE_PASSWORD" >> $vars
           echo "ADDITIONAL_BUILD_NUMBER=$ADDITIONAL_BUILD_NUMBER" >> $vars
           echo "USER_REPO=$USER_REPO" >> $vars
           echo "CHECK_UPDATES=${{ matrix.updates }}" >> $vars
