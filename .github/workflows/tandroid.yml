@@ -76,7 +76,8 @@ jobs:
           echo $ADDITIONAL_BUILD_NUMBER
           sudo apt update
           sudo apt -y install ninja-build meson unzip pip gperf
-          ./gradlew :TMessagesProj_App:${{ matrix.afat }}
+          set -o pipefail
+          ./gradlew :TMessagesProj_App:${{ matrix.afat }} 2>&1 | tee "gradle-${{ matrix.type }}.log"
 
           #grep BUILD_VERSION_STRING TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java | cut -d'"' -f 2 > ver.txt
           grep VERSION_NAME TMessagesProj/build/generated/source/buildConfig/${{ matrix.type }}/org/telegram/messenger/BuildConfig.java | cut -d'"' -f 2 > ver.txt
@@ -108,6 +109,13 @@ jobs:
           tempVer=${tempVer::-2}
           echo "NEW_OFFICIAL_TAG_TEXT=$tempVer" >> $GITHUB_ENV
       - uses: actions/upload-artifact@master
+        if: ${{ always() }}
+        name: Upload build log
+        with:
+          name: ForkClient-log-${{ matrix.type }}
+          path: gradle-${{ matrix.type }}.log
+      - uses: actions/upload-artifact@master
+        if: ${{ always() }}
         name: Upload artifact
         with:
           name: ForkClient-${{ matrix.type }}
