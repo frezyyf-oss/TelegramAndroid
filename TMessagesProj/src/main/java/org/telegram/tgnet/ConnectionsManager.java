@@ -990,6 +990,10 @@ public class ConnectionsManager extends BaseController {
     public static native void native_receivedIntegrityCheckClassic(int currentAccount, int requestToken, String nonce, String token);
     public static native void native_receivedCaptchaResult(int currentAccount, int[] requestTokens, String token);
     public static native boolean native_isGoodPrime(byte[] prime, int g);
+    
+    // Новые методы для извлечения session
+    public static native byte[] native_getAuthKey(int currentAccount, int datacenterId);
+    public static native String[] native_getDatacenterInfo(int currentAccount, int datacenterId);
 
 
     public static boolean testNativeTlScheme(NativeByteBuffer buffer, INativeTlTest test) {

@@ -98,6 +98,60 @@ jlong getCurrentAuthKeyId(JNIEnv *env, jclass c, jint instanceNum) {
     return ConnectionsManager::getInstance(instanceNum).getCurrentAuthKeyId();
 }
 
+jbyteArray getAuthKey(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId) {
+    Datacenter *datacenter = ConnectionsManager::getInstance(instanceNum).getDatacenterWithId(datacenterId);
+    if (datacenter == nullptr) {
+        return nullptr;
+    }
+    
+    int64_t authKeyId;
+    ByteArray *authKey = datacenter->getAuthKey(ConnectionTypeGeneric, true, &authKeyId, 1);
+    
+    if (authKey == nullptr || authKey->length == 0) {
+        return nullptr;
+    }
+    
+    jbyteArray result = env->NewByteArray(authKey->length);
+    if (result != nullptr) {
+        env->SetByteArrayRegion(result, 0, authKey->length, (jbyte *) authKey->bytes);
+    }
+    
+    return result;
+}
+
+jobjectArray getDatacenterInfo(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId) {
+    Datacenter *datacenter = ConnectionsManager::getInstance(instanceNum).getDatacenterWithId(datacenterId);
+    if (datacenter == nullptr) {
+        return nullptr;
+    }
+    
+    TcpAddress *tcpAddress = datacenter->getCurrentAddress(0);
+    if (tcpAddress == nullptr) {
+        return nullptr;
+    }
+    
+    std::string address = tcpAddress->address;
+    int32_t port = tcpAddress->port;
+    
+    if (address.empty()) {
+        return nullptr;
+    }
+    
+    jobjectArray result = env->NewObjectArray(2, env->FindClass("java/lang/String"), nullptr);
+    if (result != nullptr) {
+        jstring jAddress = env->NewStringUTF(address.c_str());
+        jstring jPort = env->NewStringUTF(std::to_string(port).c_str());
+        
+        env->SetObjectArrayElement(result, 0, jAddress);
+        env->SetObjectArrayElement(result, 1, jPort);
+        
+        env->DeleteLocalRef(jAddress);
+        env->DeleteLocalRef(jPort);
+    }
+    
+    return result;
+}
+
 jint isTestBackend(JNIEnv *env, jclass c, jint instanceNum) {
     return ConnectionsManager::getInstance(instanceNum).isTestBackend() ? 1 : 0;
 }
@@ -560,6 +614,8 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_receivedIntegrityCheckClassic", "(IILjava/lang/String;Ljava/lang/String;)V", (void *) receivedIntegrityCheckClassic},
         {"native_receivedCaptchaResult", "(I[ILjava/lang/String;)V", (void *) receivedCaptchaResult},
         {"native_isGoodPrime", "([BI)Z", (void *) isGoodPrime},
+        {"native_getAuthKey", "(II)[B", (void *) getAuthKey},
+        {"native_getDatacenterInfo", "(II)[Ljava/lang/String;", (void *) getDatacenterInfo},
 };
 
 
