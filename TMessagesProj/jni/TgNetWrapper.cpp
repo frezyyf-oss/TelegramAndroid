@@ -99,56 +99,38 @@ jlong getCurrentAuthKeyId(JNIEnv *env, jclass c, jint instanceNum) {
 }
 
 jbyteArray getAuthKey(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId) {
-    Datacenter *datacenter = ConnectionsManager::getInstance(instanceNum).getDatacenterWithId(datacenterId);
-    if (datacenter == nullptr) {
-        return nullptr;
-    }
-    
-    int64_t authKeyId;
-    ByteArray *authKey = datacenter->getAuthKey(ConnectionTypeGeneric, true, &authKeyId, 1);
-    
+    ByteArray *authKey = ConnectionsManager::getInstance(instanceNum).getAuthKeyForDatacenter(datacenterId);
     if (authKey == nullptr || authKey->length == 0) {
         return nullptr;
     }
-    
+
     jbyteArray result = env->NewByteArray(authKey->length);
     if (result != nullptr) {
         env->SetByteArrayRegion(result, 0, authKey->length, (jbyte *) authKey->bytes);
     }
-    
+
     return result;
 }
 
 jobjectArray getDatacenterInfo(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId) {
-    Datacenter *datacenter = ConnectionsManager::getInstance(instanceNum).getDatacenterWithId(datacenterId);
-    if (datacenter == nullptr) {
+    std::string address;
+    uint32_t port = 0;
+    if (!ConnectionsManager::getInstance(instanceNum).getDatacenterInfo(datacenterId, address, port)) {
         return nullptr;
     }
-    
-    TcpAddress *tcpAddress = datacenter->getCurrentAddress(0);
-    if (tcpAddress == nullptr) {
-        return nullptr;
-    }
-    
-    std::string address = tcpAddress->address;
-    int32_t port = tcpAddress->port;
-    
-    if (address.empty()) {
-        return nullptr;
-    }
-    
+
     jobjectArray result = env->NewObjectArray(2, env->FindClass("java/lang/String"), nullptr);
     if (result != nullptr) {
         jstring jAddress = env->NewStringUTF(address.c_str());
         jstring jPort = env->NewStringUTF(std::to_string(port).c_str());
-        
+
         env->SetObjectArrayElement(result, 0, jAddress);
         env->SetObjectArrayElement(result, 1, jPort);
-        
+
         env->DeleteLocalRef(jAddress);
         env->DeleteLocalRef(jPort);
     }
-    
+
     return result;
 }
 
